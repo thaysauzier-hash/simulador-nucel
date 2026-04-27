@@ -414,140 +414,90 @@ function showTyping(){
 function removeTyping(){const t=document.getElementById('typingEl');if(t)t.remove();}
 
 // ─────────────────────────────────────────────
-// ElevenLabs voice IDs — vozes brasileiras nativas
-// Femininas: Aria (br), Rachel (br), Joanna (br)
-// Masculinas: Adam, Josh, Sam
-// IDs públicos do catálogo multilingual v2
+// ElevenLabs — 2 vozes fixas BR, uma F e uma M
+// Catálogo: elevenlabs.io/voice-library
+// Usamos apenas duas vozes limpas, naturais,
+// sem tentar forçar sotaque regional na síntese.
+// O sotaque está no TEXTO, não na voz.
 // ─────────────────────────────────────────────
-const EL_VOICES = {
-  // Femininas brasileiras
-  F_1: 'pFZP5JQG7iQjIQuC4Bku', // Lily   — jovem, energética (Renata SP)
-  F_3: 'jsCqWAovK2LkecY7zXl4', // Freya  — ansiosa, expressiva (Patrícia PE)
-  F_5: 'AZnzlk1XvdvUeBnXmlld', // Domi   — calma, pausada (Camila MG)
-  F_7: 'EXAVITQu4vr4xnSDxMaL', // Bella  — animada, carioca (Bruna RJ)
-  F_9: 'ThT5KcBeYPX3keUQqHPh', // Dorothy— firme, melodiosa (Fernanda BA)
-  // Masculinas
-  M_2: 'TxGEqnHWrfWFTfGW9XjX', // Josh   — expressivo, carioca (Diego RJ)
-  M_4: 'VR6AewLTigWG4xSOukaG', // Arnold — grave, firme (Fábio RS)
-  M_6: 'ErXwobaYiN019PkySvjV', // Antoni — técnico, interior SP (Tiago)
-  M_8: 'yoZ06aMxZJJ28mfd3POQ', // Sam    — cauteloso, nortista (Rodrigo AM)
-  M_10:'g5CIjZEefAph4nQFvHAz', // Ethan  — técnico, cearense (Hélio CE)
-};
 
-// Mapeamento perfil → voice_id ElevenLabs
-const PROFILE_VOICE = {
-  '1': EL_VOICES.F_1,   // Renata SP
-  '2': EL_VOICES.M_2,   // Diego RJ
-  '3': EL_VOICES.F_3,   // Patrícia PE
-  '4': EL_VOICES.M_4,   // Fábio RS
-  '5': EL_VOICES.F_5,   // Camila MG
-  '6': EL_VOICES.M_6,   // Tiago SP Interior
-  '7': EL_VOICES.F_7,   // Bruna RJ
-  '8': EL_VOICES.M_8,   // Rodrigo AM
-  '9': EL_VOICES.F_9,   // Fernanda BA
-  '10': EL_VOICES.M_10, // Hélio CE
-};
+// Duas vozes fixas brasileiras do catálogo público
+const EL_VOICE_F = 'nPczCjzI2devNBz1zQrb'; // Rachel — voz feminina BR, natural e clara
+const EL_VOICE_M = 'N2lVS1w4EtoT3dr4eOWO'; // Callum — voz masculina BR, clara e fluída
 
 let currentAudio = null;
-
 function getElKey(){ return document.getElementById('elKey').value.trim(); }
 
 async function testElKey(){
   const key = getElKey();
   const st = document.getElementById('elStatus');
   if(!key){ st.style.color='var(--red)'; st.textContent='Cole sua chave ElevenLabs acima.'; return; }
-  st.style.color='var(--tx3)'; st.textContent='Testando chave...';
+  st.style.color='var(--tx3)'; st.textContent='Testando...';
   try{
     const r = await fetch('https://api.elevenlabs.io/v1/user',{headers:{'xi-api-key':key}});
     if(r.ok){
       const d = await r.json();
-      const chars = d.subscription?.character_count || 0;
-      const limit = d.subscription?.character_limit || 10000;
+      const used  = d.subscription?.character_count  || 0;
+      const limit = d.subscription?.character_limit  || 10000;
       st.style.color='var(--green)';
-      st.textContent=`✓ Chave válida — ${(limit-chars).toLocaleString()} caracteres disponíveis no plano ${d.subscription?.tier||'free'}.`;
+      st.textContent=`✓ Chave válida — ${(limit-used).toLocaleString()} caracteres livres (plano ${d.subscription?.tier||'free'}).`;
     } else {
-      st.style.color='var(--red)'; st.textContent='Chave inválida. Confira em elevenlabs.io → Profile → API Key.';
+      st.style.color='var(--red)'; st.textContent='Chave inválida — confira em elevenlabs.io → Profile → API Key.';
     }
   }catch(e){
-    st.style.color='var(--red)'; st.textContent='Erro de conexão. Verifique sua internet.';
+    st.style.color='var(--red)'; st.textContent='Erro de conexão.';
   }
 }
 
-async function speakElevenLabs(text, voiceId){
+async function speakEL(text, voiceId){
   const key = getElKey();
   if(!key) return false;
   try{
     if(currentAudio){ currentAudio.pause(); currentAudio=null; }
-    const sc = SC[sel];
-    const body = {
-      text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings:{
-        stability: 0.45,           // menos estável = mais expressivo e humano
-        similarity_boost: 0.82,    // fidelidade à voz original
-        style: 0.30,               // estilo/emoção
-        use_speaker_boost: true    // clareza
-      }
-    };
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,{
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,{
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':key},
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        text,
+        model_id:'eleven_multilingual_v2',
+        voice_settings:{
+          stability:0.50,
+          similarity_boost:0.75,
+          style:0.20,
+          use_speaker_boost:true
+        }
+      })
     });
     if(!r.ok) return false;
     const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
+    const url  = URL.createObjectURL(blob);
     currentAudio = new Audio(url);
-    currentAudio.playbackRate = sc.voiceRate || 1.0;
     currentAudio.play();
     return true;
   }catch(e){ return false; }
 }
 
-// Fallback: síntese nativa do navegador
-let voicesMale=[], voicesFemale=[], voicesLoaded=false;
-function loadVoices(){
-  const all=synth.getVoices(); if(!all.length)return; voicesLoaded=true;
-  // macOS tem: pt-BR = "Luciana" (F). Força usar ela e ajusta pitch para masculino via parâmetro.
-  const ptBR = all.filter(v=>v.lang==='pt-BR'||v.lang==='pt_BR');
-  const ptAll = all.filter(v=>v.lang.startsWith('pt'));
-  const pool = ptBR.length ? ptBR : ptAll;
-  // Separa por nome se possível
-  const fHints=['luciana','francisca','camila','fernanda','julia','ana','maria','vitoria','female','fem'];
-  const mHints=['daniel','ricardo','antonio','carlos','male','masc'];
-  pool.forEach(v=>{
-    const n=v.name.toLowerCase();
-    if(mHints.some(h=>n.includes(h))) voicesMale.push(v);
-    else if(fHints.some(h=>n.includes(h))) voicesFemale.push(v);
-    else voicesFemale.push(v);
-  });
-  if(!voicesMale.length) voicesMale=[...voicesFemale]; // usa feminina com pitch baixo no fallback
-  if(!voicesFemale.length) voicesFemale=[...voicesMale];
-}
-
 async function speak(text){
-  const key = getElKey();
-  const voiceId = PROFILE_VOICE[sel];
+  const sc = SC[sel];
+  const voiceId = sc.gender === 'F' ? EL_VOICE_F : EL_VOICE_M;
 
-  // Tenta ElevenLabs primeiro
-  if(key && voiceId){
-    const ok = await speakElevenLabs(text, voiceId);
-    if(ok) return;
-  }
+  // Tenta ElevenLabs
+  const ok = await speakEL(text, voiceId);
+  if(ok) return;
 
-  // Fallback: navegador nativo
-  if(!synth)return;
+  // Fallback navegador (sem sotaque, só voz limpa pt-BR)
+  if(!synth) return;
   synth.cancel();
-  if(!voicesLoaded) loadVoices();
-  const sc=SC[sel];
-  const isFemale=sc.gender==='F';
-  const pool=isFemale?voicesFemale:voicesMale;
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang='pt-BR';
-  u.rate  = isFemale ? 0.85 : 0.82;
-  u.pitch = isFemale ? 1.02 : (pool===voicesFemale ? 0.72 : 0.90); // pitch baixo se forçando voz F para M
-  u.volume=1.0;
-  if(pool.length) u.voice=pool[0];
+  const all = synth.getVoices();
+  const ptBR = all.filter(v => v.lang==='pt-BR' || v.lang==='pt_BR');
+  const pool = ptBR.length ? ptBR : all.filter(v => v.lang.startsWith('pt'));
+  const isFemale = sc.gender === 'F';
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang   = 'pt-BR';
+  u.rate   = 0.90;
+  u.pitch  = isFemale ? 1.00 : 0.85;
+  u.volume = 1.0;
+  if(pool.length) u.voice = pool[0];
   synth.speak(u);
 }
 
@@ -696,7 +646,7 @@ function endCall(){
   document.getElementById('fbScreen').style.display='flex';
 }
 
-if(synth){loadVoices();synth.onvoiceschanged=loadVoices;}
+if(synth){synth.onvoiceschanged=()=>{};}
 </script>
 </body>
 </html>
